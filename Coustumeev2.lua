@@ -1,46 +1,60 @@
--- DELTA EXECUTOR - GERÇEK KARAKTER KOPYALAMA (R6/R15)
+-- DELTA EXECUTOR - TAM KARAKTER KOPYALAMA (FULL)
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
--- ===== AKSESUAR KOPYALAMA (DERİNLEMESİNE) =====
-local function copyAccessories(fromChar, toChar)
-    -- Eski aksesuarları temizle
+local isMobile = UserInputService.TouchEnabled
+local screenGui = nil
+local mobileBtn = nil
+local panelOpen = false
+
+-- ===== AKSESUAR KOPYALAMA (YENİ SİSTEM) =====
+local function copyAllAccessories(fromChar, toChar)
+    -- Eski aksesuarları temizle (MODEL olanları da)
+    local toRemove = {}
     for _, child in pairs(toChar:GetChildren()) do
-        if child:IsA("Accessory") or child:IsA("Hat") or 
-           child:IsA("Model") and (child.Name:match("Hat") or child.Name:match("Accessory") or child.Name:match("Face")) then
-            child:Destroy()
+        if child:IsA("Accessory") or child:IsA("Hat") or child:IsA("Model") then
+            if child.Name:match("Hat") or child.Name:match("Accessory") or 
+               child.Name:match("Face") or child.Name:match("Hair") or
+               child.Name:match("Head") or child:FindFirstChild("Handle") then
+                table.insert(toRemove, child)
+            end
         end
+    end
+    for _, child in pairs(toRemove) do
+        child:Destroy()
     end
     
     local count = 0
-    -- Tüm aksesuarları tara (derinlemesine)
+    
+    -- TÜM aksesuarları tara (Accessory, Hat, Model)
     for _, acc in pairs(fromChar:GetChildren()) do
-        -- Aksesuar kontrolü
+        -- Accessory tipi
         if acc:IsA("Accessory") or acc:IsA("Hat") then
             local clone = acc:Clone()
             clone.Parent = toChar
-            
-            -- Handle'ı düzenle
-            if clone:FindFirstChild("Handle") then
-                local handle = clone.Handle
-                local origHandle = acc:FindFirstChild("Handle")
-                if origHandle then
-                    handle.Color = origHandle.Color
-                    handle.Material = origHandle.Material
-                    handle.Transparency = origHandle.Transparency
-                    handle.Size = origHandle.Size
-                end
-            end
             count = count + 1
         end
         
-        -- Model içindeki aksesuarlar (Face, Hat vs)
+        -- Model tipi (YENİ ROBLOX SİSTEMİ)
         if acc:IsA("Model") then
-            for _, subAcc in pairs(acc:GetChildren()) do
-                if subAcc:IsA("Accessory") or subAcc:IsA("Hat") or 
-                   subAcc:IsA("Part") and (subAcc.Name:match("Face") or subAcc.Name:match("Hat")) then
-                    local clone = subAcc:Clone()
+            -- Handle var mı kontrol et (aksesuar olduğunu gösterir)
+            if acc:FindFirstChild("Handle") then
+                local clone = acc:Clone()
+                clone.Parent = toChar
+                count = count + 1
+            end
+            
+            -- İçindeki aksesuarları kontrol et
+            for _, sub in pairs(acc:GetChildren()) do
+                if sub:IsA("Accessory") or sub:IsA("Hat") then
+                    local clone = sub:Clone()
+                    clone.Parent = toChar
+                    count = count + 1
+                end
+                if sub:IsA("Model") and sub:FindFirstChild("Handle") then
+                    local clone = sub:Clone()
                     clone.Parent = toChar
                     count = count + 1
                 end
@@ -51,55 +65,26 @@ local function copyAccessories(fromChar, toChar)
     return count
 end
 
--- ===== GİYSİ KOPYALAMA =====
-local function copyClothing(fromHumanoid, toHumanoid)
-    if not fromHumanoid or not toHumanoid then return end
-    
-    -- Shirt
-    if fromHumanoid:FindFirstChild("Shirt") then
-        local shirt = fromHumanoid.Shirt:Clone()
-        shirt.Parent = toHumanoid
-    end
-    
-    -- Pants
-    if fromHumanoid:FindFirstChild("Pants") then
-        local pants = fromHumanoid.Pants:Clone()
-        pants.Parent = toHumanoid
-    end
-    
-    -- ShirtGraphic
-    if fromHumanoid:FindFirstChild("ShirtGraphic") then
-        local graphic = fromHumanoid.ShirtGraphic:Clone()
-        graphic.Parent = toHumanoid
-    end
-    
-    -- TShirt
-    if fromHumanoid:FindFirstChild("TShirt") then
-        local tshirt = fromHumanoid.TShirt:Clone()
-        tshirt.Parent = toHumanoid
-    end
-end
-
 -- ===== ANA KOPYALAMA =====
 local function copyCharacter(targetPlayer)
     local targetChar = targetPlayer.Character
     if not targetChar then
-        return "❌ Hedef karakter yok!"
+        return "❌ Hedef karakter yok!", 0
     end
     
     local myChar = player.Character
     if not myChar then
-        return "❌ Senin karakterin yok!"
+        return "❌ Senin karakterin yok!", 0
     end
     
     local myHumanoid = myChar:FindFirstChildOfClass("Humanoid")
     local targetHumanoid = targetChar:FindFirstChildOfClass("Humanoid")
     
     if not myHumanoid or not targetHumanoid then
-        return "❌ Humanoid bulunamadı!"
+        return "❌ Humanoid yok!", 0
     end
     
-    -- 1. BODYCOLORS (TEN RENGİ)
+    -- 1. TEN RENGİ (BodyColors)
     local myColors = myHumanoid:FindFirstChild("BodyColors")
     local targetColors = targetHumanoid:FindFirstChild("BodyColors")
     
@@ -112,9 +97,9 @@ local function copyCharacter(targetPlayer)
         myColors.RightLegColor = targetColors.RightLegColor
     end
     
-    -- 2. VÜCUT PARÇALARI (RENK + MALZEME)
-    local bodyParts = {"Head", "Torso", "LeftArm", "RightArm", "LeftLeg", "RightLeg", "UpperTorso", "LowerTorso"}
-    for _, name in pairs(bodyParts) do
+    -- 2. VÜCUT PARÇALARI (renk + malzeme)
+    local parts = {"Head", "Torso", "LeftArm", "RightArm", "LeftLeg", "RightLeg", "UpperTorso", "LowerTorso"}
+    for _, name in pairs(parts) do
         local tp = targetChar:FindFirstChild(name)
         local mp = myChar:FindFirstChild(name)
         if tp and mp then
@@ -126,149 +111,234 @@ local function copyCharacter(targetPlayer)
     end
     
     -- 3. GİYSİLER
-    copyClothing(targetHumanoid, myHumanoid)
+    if targetHumanoid.Shirt and targetHumanoid.Shirt ~= "" then
+        myHumanoid.Shirt = targetHumanoid.Shirt
+    end
+    if targetHumanoid.Pants and targetHumanoid.Pants ~= "" then
+        myHumanoid.Pants = targetHumanoid.Pants
+    end
+    if targetHumanoid.ShirtGraphic and targetHumanoid.ShirtGraphic ~= "" then
+        myHumanoid.ShirtGraphic = targetHumanoid.ShirtGraphic
+    end
+    if targetHumanoid.TShirt and targetHumanoid.TShirt ~= "" then
+        myHumanoid.TShirt = targetHumanoid.TShirt
+    end
     
-    -- 4. AKSESUARLAR
-    local accCount = copyAccessories(targetChar, myChar)
+    -- 4. AKSESUARLAR (TÜMÜ)
+    local accCount = copyAllAccessories(targetChar, myChar)
     
-    -- 5. ÖZEL PARÇALAR (Face, Body vs)
+    -- 5. SAÇ (Hair) - ÖZEL
     for _, child in pairs(targetChar:GetChildren()) do
-        if child:IsA("Model") and child.Name:match("Face") then
+        if child:IsA("Model") and (child.Name:match("Hair") or child.Name:match("hair")) then
             local clone = child:Clone()
             clone.Parent = myChar
+            accCount = accCount + 1
         end
     end
     
-    return "✅ " .. targetPlayer.Name .. " kopyalandı! (" .. accCount .. " aksesuar)"
+    return "✅ " .. targetPlayer.Name .. " kopyalandı! (" .. accCount .. " aksesuar)", accCount
+end
+
+-- ===== MOBİL BUTON =====
+local function createMobileButton()
+    if mobileBtn then mobileBtn:Destroy() end
+    if screenGui then return end
+    
+    mobileBtn = Instance.new("TextButton")
+    mobileBtn.Parent = player.PlayerGui
+    mobileBtn.Size = UDim2.new(0, 60, 0, 60)
+    mobileBtn.Position = UDim2.new(0.88, 0, 0.05, 0)
+    mobileBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
+    mobileBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    mobileBtn.Text = "🌀"
+    mobileBtn.Font = Enum.Font.GothamBold
+    mobileBtn.TextSize = 30
+    mobileBtn.BackgroundTransparency = 0.15
+    mobileBtn.BorderSizePixel = 2
+    mobileBtn.BorderColor3 = Color3.fromRGB(0, 220, 255)
+    mobileBtn.Name = "KopyalaButon"
+    
+    mobileBtn.MouseButton1Click:Connect(function()
+        if mobileBtn then 
+            mobileBtn:Destroy()
+            mobileBtn = nil
+        end
+        openPanel()
+    end)
 end
 
 -- ===== PANEL =====
-local gui = Instance.new("ScreenGui")
-gui.Parent = player.PlayerGui
-gui.Name = "KopyalamaPaneli"
-gui.ResetOnSpawn = false
-
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 380, 0, 450)
-frame.Position = UDim2.new(0.5, -190, 0.5, -225)
-frame.BackgroundColor3 = Color3.fromRGB(10, 10, 30)
-frame.BackgroundTransparency = 0.1
-frame.BorderSizePixel = 2
-frame.BorderColor3 = Color3.fromRGB(0, 200, 255)
-frame.Parent = gui
-frame.Active = true
-frame.Draggable = true
-
--- Başlık
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 35)
-title.Text = "🌀 GERÇEK KARAKTER KOPYALA"
-title.TextColor3 = Color3.fromRGB(0, 220, 255)
-title.BackgroundTransparency = 1
-title.Font = Enum.Font.GothamBold
-title.TextSize = 16
-title.Parent = frame
-
--- Kapat
-local close = Instance.new("TextButton")
-close.Size = UDim2.new(0, 30, 0, 30)
-close.Position = UDim2.new(1, -35, 0, 3)
-close.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-close.TextColor3 = Color3.fromRGB(255, 255, 255)
-close.Text = "✕"
-close.Font = Enum.Font.GothamBold
-close.TextSize = 16
-close.Parent = frame
-close.MouseButton1Click:Connect(function()
-    gui:Destroy()
-end)
-
--- Liste başlığı
-local listLabel = Instance.new("TextLabel")
-listLabel.Size = UDim2.new(0.9, 0, 0, 25)
-listLabel.Position = UDim2.new(0.05, 0, 0, 40)
-listLabel.Text = "📋 OYUNCULAR (Tıkla - Kopyala):"
-listLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
-listLabel.BackgroundTransparency = 1
-listLabel.Font = Enum.Font.GothamBold
-listLabel.TextSize = 13
-listLabel.Parent = frame
-
--- Liste
-local playerList = Instance.new("ScrollingFrame")
-playerList.Size = UDim2.new(0.9, 0, 0, 250)
-playerList.Position = UDim2.new(0.05, 0, 0, 70)
-playerList.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
-playerList.BackgroundTransparency = 0.3
-playerList.BorderSizePixel = 1
-playerList.BorderColor3 = Color3.fromRGB(0, 100, 200)
-playerList.Parent = frame
-playerList.CanvasSize = UDim2.new(0, 0, 0, 0)
-
--- Durum
-local status = Instance.new("TextLabel")
-status.Size = UDim2.new(0.9, 0, 0, 40)
-status.Position = UDim2.new(0.05, 0, 0, 330)
-status.Text = "Hazır"
-status.TextColor3 = Color3.fromRGB(200, 200, 255)
-status.BackgroundTransparency = 1
-status.Font = Enum.Font.Gotham
-status.TextSize = 13
-status.Parent = frame
-
--- Bilgi
-local info = Instance.new("TextLabel")
-info.Size = UDim2.new(0.9, 0, 0, 30)
-info.Position = UDim2.new(0.05, 0, 0, 380)
-info.Text = "💡 R6 ve R15 karakterler desteklenir"
-info.TextColor3 = Color3.fromRGB(100, 200, 255)
-info.BackgroundTransparency = 1
-info.Font = Enum.Font.Gotham
-info.TextSize = 11
-info.Parent = frame
-
--- ===== LİSTEYİ DOLDUR =====
-local function updateList()
-    for _, child in pairs(playerList:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
+local function openPanel()
+    if screenGui then 
+        screenGui:Destroy()
+        screenGui = nil
     end
     
-    local yPos = 5
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= player then
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(0.9, 0, 0, 32)
-            btn.Position = UDim2.new(0.05, 0, 0, yPos)
-            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 75)
-            btn.TextColor3 = Color3.fromRGB(200, 200, 255)
-            btn.Text = "👤 " .. p.Name
-            btn.Font = Enum.Font.Gotham
-            btn.TextSize = 13
-            btn.Parent = playerList
-            
-            btn.MouseButton1Click:Connect(function()
-                status.Text = "⏳ Kopyalanıyor: " .. p.Name
-                status.TextColor3 = Color3.fromRGB(255, 200, 0)
-                
-                local result = copyCharacter(p)
-                status.Text = result
-                if result:match("✅") then
-                    status.TextColor3 = Color3.fromRGB(0, 255, 100)
-                else
-                    status.TextColor3 = Color3.fromRGB(255, 50, 50)
-                end
-            end)
-            
-            yPos = yPos + 37
+    panelOpen = true
+    screenGui = Instance.new("ScreenGui")
+    screenGui.Parent = player.PlayerGui
+    screenGui.Name = "KopyalamaPaneli"
+    screenGui.ResetOnSpawn = false
+    
+    local frame = Instance.new("Frame")
+    frame.Size = isMobile and UDim2.new(0.9, 0, 0.7, 0) or UDim2.new(0, 380, 0, 460)
+    frame.Position = UDim2.new(0.5, isMobile and -170 or -190, 0.5, isMobile and -200 or -230)
+    frame.BackgroundColor3 = Color3.fromRGB(10, 10, 30)
+    frame.BackgroundTransparency = 0.1
+    frame.BorderSizePixel = 2
+    frame.BorderColor3 = Color3.fromRGB(0, 200, 255)
+    frame.Parent = screenGui
+    frame.Active = true
+    frame.Draggable = true
+    
+    -- Başlık
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 35)
+    title.Text = "🌀 KARAKTER KOPYALA"
+    title.TextColor3 = Color3.fromRGB(0, 220, 255)
+    title.BackgroundTransparency = 1
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = isMobile and 20 or 16
+    title.Parent = frame
+    
+    -- KAPAT BUTONU (Panel içinde)
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 35, 0, 35)
+    closeBtn.Position = UDim2.new(1, -40, 0, 3)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.Text = "✕"
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 18
+    closeBtn.Parent = frame
+    closeBtn.MouseButton1Click:Connect(function()
+        if screenGui then 
+            screenGui:Destroy()
+            screenGui = nil
         end
+        panelOpen = false
+        if isMobile then
+            createMobileButton()
+        end
+    end)
+    
+    -- Liste başlığı
+    local listLabel = Instance.new("TextLabel")
+    listLabel.Size = UDim2.new(0.9, 0, 0, 25)
+    listLabel.Position = UDim2.new(0.05, 0, 0, 40)
+    listLabel.Text = "📋 OYUNCULAR (Tıkla - Kopyala):"
+    listLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
+    listLabel.BackgroundTransparency = 1
+    listLabel.Font = Enum.Font.GothamBold
+    listLabel.TextSize = isMobile and 15 or 13
+    listLabel.Parent = frame
+    
+    -- Liste
+    local playerList = Instance.new("ScrollingFrame")
+    playerList.Size = UDim2.new(0.9, 0, 0, isMobile and 270 or 240)
+    playerList.Position = UDim2.new(0.05, 0, 0, 70)
+    playerList.BackgroundColor3 = Color3.fromRGB(25, 25, 50)
+    playerList.BackgroundTransparency = 0.3
+    playerList.BorderSizePixel = 1
+    playerList.BorderColor3 = Color3.fromRGB(0, 100, 200)
+    playerList.Parent = frame
+    playerList.CanvasSize = UDim2.new(0, 0, 0, 0)
+    
+    -- Durum
+    local status = Instance.new("TextLabel")
+    status.Size = UDim2.new(0.9, 0, 0, isMobile and 40 or 35)
+    status.Position = UDim2.new(0.05, 0, 0, isMobile and 350 or 320)
+    status.Text = "Hazır"
+    status.TextColor3 = Color3.fromRGB(200, 200, 255)
+    status.BackgroundTransparency = 1
+    status.Font = Enum.Font.Gotham
+    status.TextSize = isMobile and 15 or 13
+    status.Parent = frame
+    
+    -- ===== LİSTEYİ DOLDUR =====
+    local function updateList()
+        for _, child in pairs(playerList:GetChildren()) do
+            if child:IsA("TextButton") then child:Destroy() end
+        end
+        
+        local yPos = 5
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= player then
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(0.9, 0, 0, isMobile and 38 or 32)
+                btn.Position = UDim2.new(0.05, 0, 0, yPos)
+                btn.BackgroundColor3 = Color3.fromRGB(45, 45, 75)
+                btn.TextColor3 = Color3.fromRGB(200, 200, 255)
+                btn.Text = "👤 " .. p.Name
+                btn.Font = Enum.Font.Gotham
+                btn.TextSize = isMobile and 15 or 13
+                btn.Parent = playerList
+                
+                btn.MouseButton1Click:Connect(function()
+                    status.Text = "⏳ Kopyalanıyor: " .. p.Name
+                    status.TextColor3 = Color3.fromRGB(255, 200, 0)
+                    
+                    local result, count = copyCharacter(p)
+                    status.Text = result
+                    if result:match("✅") then
+                        status.TextColor3 = Color3.fromRGB(0, 255, 100)
+                    else
+                        status.TextColor3 = Color3.fromRGB(255, 50, 50)
+                    end
+                end)
+                
+                yPos = yPos + (isMobile and 43 or 37)
+            end
+        end
+        
+        playerList.CanvasSize = UDim2.new(0, 0, 0, yPos + 10)
     end
     
-    playerList.CanvasSize = UDim2.new(0, 0, 0, yPos + 10)
+    updateList()
+    Players.PlayerAdded:Connect(updateList)
+    Players.PlayerRemoving:Connect(updateList)
+    
+    -- Bilgi
+    local info = Instance.new("TextLabel")
+    info.Size = UDim2.new(0.9, 0, 0, 25)
+    info.Position = UDim2.new(0.05, 0, 0, isMobile and 400 or 365)
+    info.Text = "💡 Ten rengi + Giysi + Aksesuar + Saç"
+    info.TextColor3 = Color3.fromRGB(100, 200, 255)
+    info.BackgroundTransparency = 1
+    info.Font = Enum.Font.Gotham
+    info.TextSize = isMobile and 13 or 11
+    info.Parent = frame
 end
 
-updateList()
-Players.PlayerAdded:Connect(updateList)
-Players.PlayerRemoving:Connect(updateList)
+-- ===== F8 İLE AÇ/KAPA =====
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.F8 then
+        if panelOpen then
+            if screenGui then 
+                screenGui:Destroy()
+                screenGui = nil
+            end
+            panelOpen = false
+            if isMobile then
+                createMobileButton()
+            end
+        else
+            if mobileBtn then
+                mobileBtn:Destroy()
+                mobileBtn = nil
+            end
+            openPanel()
+        end
+    end
+end)
 
-print("🌀 GERÇEK KARAKTER KOPYALAMA AKTİF!")
-print("📌 R6/R15 desteği ile çalışır")
+-- ===== BAŞLAT =====
+if isMobile then
+    createMobileButton()
+    print("🌀 Mobil buton aktif! Tıkla aç.")
+else
+    openPanel()
+    print("🌀 Panel açıldı! F8 ile kapat.")
+end
+
+print("📌 Ten rengi + Giysi + Aksesuar + Saç kopyalanır")
